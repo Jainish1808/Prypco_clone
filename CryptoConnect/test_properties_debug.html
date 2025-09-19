@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Properties Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 20px; margin: 5px; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; max-height: 400px; }
+    </style>
+</head>
+<body>
+    <h1>Properties Debug Test</h1>
+    
+    <div>
+        <button onclick="testAllProperties()">1. Get All Properties (Debug)</button>
+        <button onclick="testCurrentUser()">2. Get Current User</button>
+        <button onclick="testSellerProperties()">3. Get Seller Properties (Auth)</button>
+        <button onclick="testSellerPropertiesDebug()">4. Get Seller Properties (No Auth)</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+
+        function addResult(title, success, data) {
+            const div = document.createElement('div');
+            div.className = `test ${success ? 'success' : 'error'}`;
+            div.innerHTML = `
+                <h3>${title}</h3>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+            resultsDiv.appendChild(div);
+        }
+
+        function clearResults() {
+            resultsDiv.innerHTML = '';
+        }
+
+        async function testAllProperties() {
+            try {
+                const response = await fetch('/api/debug/properties');
+                const data = await response.json();
+                addResult('All Properties (Debug)', response.ok, data);
+            } catch (error) {
+                addResult('All Properties (Debug)', false, { error: error.message });
+            }
+        }
+
+        async function testCurrentUser() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/user', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+                const data = await response.json();
+                addResult('Current User', response.ok, data);
+                
+                // If successful, also test user-specific properties
+                if (response.ok && data.id) {
+                    testUserProperties(data.id);
+                }
+            } catch (error) {
+                addResult('Current User', false, { error: error.message });
+            }
+        }
+
+        async function testUserProperties(userId) {
+            try {
+                const response = await fetch(`/api/debug/user-properties/${userId}`);
+                const data = await response.json();
+                addResult(`User Properties for ${userId}`, response.ok, data);
+            } catch (error) {
+                addResult(`User Properties for ${userId}`, false, { error: error.message });
+            }
+        }
+
+        async function testSellerProperties() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/seller/properties', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+                const data = await response.json();
+                addResult('Seller Properties (Auth)', response.ok, data);
+            } catch (error) {
+                addResult('Seller Properties (Auth)', false, { error: error.message });
+            }
+        }
+
+        async function testSellerPropertiesDebug() {
+            try {
+                const response = await fetch('/api/seller/properties-debug');
+                const data = await response.json();
+                addResult('Seller Properties (No Auth)', response.ok, data);
+            } catch (error) {
+                addResult('Seller Properties (No Auth)', false, { error: error.message });
+            }
+        }
+
+        // Auto-run some tests on page load
+        window.onload = function() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                addResult('Token Status', true, { 
+                    message: 'Token found in localStorage',
+                    token_preview: token.substring(0, 30) + '...'
+                });
+            } else {
+                addResult('Token Status', false, { message: 'No token found in localStorage' });
+            }
+        };
+    </script>
+</body>
+</html>

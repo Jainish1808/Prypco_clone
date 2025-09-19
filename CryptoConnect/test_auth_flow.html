@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Authentication Flow</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 20px; margin: 5px; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+    </style>
+</head>
+<body>
+    <h1>CryptoConnect Authentication Flow Test</h1>
+    
+    <div>
+        <h3>Test User Registration & Login</h3>
+        <input type="text" id="username" placeholder="Username" value="testuser123">
+        <input type="email" id="email" placeholder="Email" value="test@example.com">
+        <input type="password" id="password" placeholder="Password" value="password123">
+        <br>
+        <button onclick="testRegister()">Register User</button>
+        <button onclick="testLogin()">Login User</button>
+        <button onclick="testGetCurrentUser()">Get Current User</button>
+        <button onclick="testPropertySubmission()">Submit Property</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+        let authToken = null;
+
+        function addResult(title, success, data) {
+            const div = document.createElement('div');
+            div.className = `test ${success ? 'success' : 'error'}`;
+            div.innerHTML = `
+                <h3>${title}</h3>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+            resultsDiv.appendChild(div);
+        }
+
+        async function testRegister() {
+            try {
+                const userData = {
+                    email: document.getElementById('email').value,
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value,
+                    firstName: "Test",
+                    lastName: "User",
+                    userType: "seller"
+                };
+
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(userData)
+                });
+                
+                const data = await response.json();
+                addResult('User Registration', response.ok, data);
+            } catch (error) {
+                addResult('User Registration', false, { error: error.message });
+            }
+        }
+
+        async function testLogin() {
+            try {
+                const loginData = {
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value
+                };
+
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(loginData)
+                });
+                
+                const data = await response.json();
+                if (response.ok && data.access_token) {
+                    authToken = data.access_token;
+                    localStorage.setItem('token', authToken);
+                }
+                addResult('User Login', response.ok, data);
+            } catch (error) {
+                addResult('User Login', false, { error: error.message });
+            }
+        }
+
+        async function testGetCurrentUser() {
+            try {
+                const token = authToken || localStorage.getItem('token');
+                const response = await fetch('/api/user', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                addResult('Get Current User', response.ok, data);
+            } catch (error) {
+                addResult('Get Current User', false, { error: error.message });
+            }
+        }
+
+        async function testPropertySubmission() {
+            try {
+                const token = authToken || localStorage.getItem('token');
+                const propertyData = {
+                    title: "Test Property via HTML",
+                    description: "Test property description",
+                    address: "123 Test Street",
+                    city: "Test City",
+                    country: "Test Country",
+                    property_type: "apartment",
+                    total_value: 1000000,
+                    size_sqm: 100,
+                    bedrooms: 2,
+                    bathrooms: 2,
+                    parking_spaces: 1,
+                    year_built: 2020,
+                    monthly_rent: 5000
+                };
+
+                const response = await fetch('/api/seller/property/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(propertyData)
+                });
+                
+                const data = await response.json();
+                addResult('Property Submission', response.ok, data);
+            } catch (error) {
+                addResult('Property Submission', false, { error: error.message });
+            }
+        }
+
+        // Check if user is already logged in
+        window.onload = function() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                authToken = token;
+                addResult('Existing Token Found', true, { token: token.substring(0, 20) + '...' });
+            }
+        };
+    </script>
+</body>
+</html>

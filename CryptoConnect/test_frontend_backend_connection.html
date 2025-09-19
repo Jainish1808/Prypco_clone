@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Frontend-Backend Connection</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 20px; margin: 5px; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>CryptoConnect Frontend-Backend Connection Test</h1>
+    
+    <div id="results"></div>
+    
+    <button onclick="testBackendHealth()">Test Backend Health</button>
+    <button onclick="testApiHealth()">Test API Health</button>
+    <button onclick="testPropertySubmission()">Test Property Submission</button>
+    <button onclick="runAllTests()">Run All Tests</button>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+
+        function addResult(title, success, data) {
+            const div = document.createElement('div');
+            div.className = `test ${success ? 'success' : 'error'}`;
+            div.innerHTML = `
+                <h3>${title}</h3>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+            resultsDiv.appendChild(div);
+        }
+
+        async function testBackendHealth() {
+            try {
+                const response = await fetch('http://localhost:8000/health');
+                const data = await response.json();
+                addResult('Backend Health Check', response.ok, data);
+            } catch (error) {
+                addResult('Backend Health Check', false, { error: error.message });
+            }
+        }
+
+        async function testApiHealth() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                addResult('API Health Check (via proxy)', response.ok, data);
+            } catch (error) {
+                addResult('API Health Check (via proxy)', false, { error: error.message });
+            }
+        }
+
+        async function testPropertySubmission() {
+            try {
+                const testData = {
+                    title: "Test Property",
+                    description: "Test Description",
+                    address: "123 Test St",
+                    city: "Test City",
+                    country: "Test Country",
+                    property_type: "apartment",
+                    total_value: 1000000,
+                    size_sqm: 100
+                };
+
+                const response = await fetch('/api/seller/property/submit-debug', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await response.json();
+                addResult('Property Submission Test (Debug)', response.ok, data);
+            } catch (error) {
+                addResult('Property Submission Test (Debug)', false, { error: error.message });
+            }
+        }
+
+        async function runAllTests() {
+            resultsDiv.innerHTML = '';
+            await testBackendHealth();
+            await testApiHealth();
+            await testPropertySubmission();
+        }
+
+        // Auto-run tests on page load
+        window.onload = runAllTests;
+    </script>
+</body>
+</html>

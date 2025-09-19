@@ -1,0 +1,14 @@
+# IDE and editor files
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+.env
+
+# Node
+node_modules/
+
+# Other
+deom.zip
+/CryptoConnect/backend/uploads/

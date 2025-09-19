@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 20px; margin: 5px; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Authentication Debug Test</h1>
+    
+    <div>
+        <button onclick="testLogin()">1. Login</button>
+        <button onclick="testAuthEndpoint()">2. Test Auth Endpoint</button>
+        <button onclick="testCurrentUser()">3. Test Current User</button>
+        <button onclick="testPropertySubmission()">4. Test Property Submission</button>
+        <button onclick="clearToken()">Clear Token</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+
+        function addResult(title, success, data) {
+            const div = document.createElement('div');
+            div.className = `test ${success ? 'success' : 'error'}`;
+            div.innerHTML = `
+                <h3>${title}</h3>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+            resultsDiv.appendChild(div);
+        }
+
+        async function testLogin() {
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'testuser',
+                        password: 'password123'
+                    })
+                });
+                
+                const data = await response.json();
+                if (response.ok && data.access_token) {
+                    localStorage.setItem('token', data.access_token);
+                    addResult('Login Test', true, { 
+                        message: 'Login successful', 
+                        token_preview: data.access_token.substring(0, 30) + '...',
+                        user: data.user 
+                    });
+                } else {
+                    addResult('Login Test', false, data);
+                }
+            } catch (error) {
+                addResult('Login Test', false, { error: error.message });
+            }
+        }
+
+        async function testAuthEndpoint() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    addResult('Auth Test', false, { error: 'No token found. Please login first.' });
+                    return;
+                }
+
+                const response = await fetch('/api/auth-test', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                addResult('Auth Test', response.ok, data);
+            } catch (error) {
+                addResult('Auth Test', false, { error: error.message });
+            }
+        }
+
+        async function testCurrentUser() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    addResult('Current User Test', false, { error: 'No token found. Please login first.' });
+                    return;
+                }
+
+                const response = await fetch('/api/user', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                addResult('Current User Test', response.ok, data);
+            } catch (error) {
+                addResult('Current User Test', false, { error: error.message });
+            }
+        }
+
+        async function testPropertySubmission() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    addResult('Property Submission Test', false, { error: 'No token found. Please login first.' });
+                    return;
+                }
+
+                const propertyData = {
+                    title: "Debug Test Property",
+                    description: "Test property description",
+                    address: "123 Debug Street",
+                    city: "Debug City",
+                    country: "Debug Country",
+                    property_type: "apartment",
+                    total_value: 1000000,
+                    size_sqm: 100,
+                    bedrooms: 2,
+                    bathrooms: 2
+                };
+
+                const response = await fetch('/api/seller/property/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(propertyData)
+                });
+                
+                const data = await response.json();
+                addResult('Property Submission Test', response.ok, data);
+            } catch (error) {
+                addResult('Property Submission Test', false, { error: error.message });
+            }
+        }
+
+        function clearToken() {
+            localStorage.removeItem('token');
+            addResult('Clear Token', true, { message: 'Token cleared from localStorage' });
+        }
+
+        // Check if token exists on load
+        window.onload = function() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                addResult('Token Status', true, { 
+                    message: 'Token found in localStorage',
+                    token_preview: token.substring(0, 30) + '...'
+                });
+            } else {
+                addResult('Token Status', false, { message: 'No token found in localStorage' });
+            }
+        };
+    </script>
+</body>
+</html>
