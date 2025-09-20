@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from fastapi import Depends
 from app.database import connect_to_mongo, close_mongo_connection
-from app.routers import auth, properties, seller, investor, admin, upload, market
+from app.routers import auth, properties, seller, investor, admin, upload, market, tokens, simple_wallet, wallet, debug
 from app.config import settings
 from app.auth import get_current_active_user
 from app.models.user import User
@@ -42,6 +42,10 @@ app.include_router(investor.router)
 app.include_router(admin.router)
 app.include_router(upload.router)
 app.include_router(market.router)
+app.include_router(tokens.router)
+app.include_router(simple_wallet.router)
+app.include_router(wallet.router)
+app.include_router(debug.router)
 
 
 @app.get("/")

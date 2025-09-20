@@ -7,6 +7,7 @@ import {
 import { api, User } from "../lib/api";
 import { queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useNotifications } from "@/hooks/use-notifications";
 
 type AuthContextType = {
   user: User | null;
@@ -46,6 +47,7 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
+  const { showToastAndNotification } = useNotifications();
   const {
     data: user,
     error,
@@ -82,17 +84,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["/api/user"], data.user);
-      toast({
-        title: "Login successful",
-        description: `Welcome back, ${data.user.firstName || data.user.username}!`,
-      });
+      showToastAndNotification(
+        "Login successful",
+        `Welcome back, ${data.user.firstName || data.user.username}!`,
+        "success"
+      );
     },
     onError: (error: Error) => {
-      toast({
-        title: "Login failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      showToastAndNotification(
+        "Login failed",
+        error.message,
+        "error"
+      );
     },
   });
 
@@ -102,17 +105,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (user: User) => {
       queryClient.setQueryData(["/api/user"], user);
-      toast({
-        title: "Registration successful",
-        description: `Welcome to CryptoConnect, ${user.firstName || user.username}!`,
-      });
+      showToastAndNotification(
+        "Registration successful",
+        `Welcome to CryptoConnect, ${user.firstName || user.username}!`,
+        "success"
+      );
     },
     onError: (error: Error) => {
-      toast({
-        title: "Registration failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      showToastAndNotification(
+        "Registration failed",
+        error.message,
+        "error"
+      );
     },
   });
 
@@ -122,17 +126,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: () => {
       queryClient.setQueryData(["/api/user"], null);
-      toast({
-        title: "Logged out",
-        description: "You have been successfully logged out.",
-      });
+      showToastAndNotification(
+        "Logged out",
+        "You have been successfully logged out.",
+        "info"
+      );
     },
     onError: (error: Error) => {
-      toast({
-        title: "Logout failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      showToastAndNotification(
+        "Logout failed",
+        error.message,
+        "error"
+      );
     },
   });
 
@@ -143,17 +148,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     onSuccess: () => {
       // Refetch user data to get updated KYC status
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      toast({
-        title: "KYC Verification Complete",
-        description: "Your identity has been verified successfully.",
-      });
+      showToastAndNotification(
+        "KYC Verification Complete",
+        "Your identity has been verified successfully.",
+        "success"
+      );
     },
     onError: (error: Error) => {
-      toast({
-        title: "KYC Submission Failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      showToastAndNotification(
+        "KYC Submission Failed",
+        error.message,
+        "error"
+      );
     },
   });
 

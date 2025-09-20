@@ -1,5 +1,6 @@
-// Use relative URLs in development to use Vite proxy
-const API_BASE_URL = import.meta.env.DEV ? '' : 'http://localhost:8000';
+// Use environment variable for API base URL with fallback
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
+  (import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'));
 
 // Types
 export interface User {
@@ -481,6 +482,11 @@ class ApiClient {
     };
   }> {
     return this.request('/api/admin/dashboard');
+  }
+
+  // Notification methods
+  async getUnreadNotifications(): Promise<{ count: number }> {
+    return this.request('/api/notifications/unread');
   }
 }
 

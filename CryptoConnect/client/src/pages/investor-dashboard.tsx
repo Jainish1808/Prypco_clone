@@ -44,39 +44,30 @@ export default function InvestorDashboard() {
     enabled: !!user && user.userType === 'investor' && api.isAuthenticated(),
   });
 
-  // Calculate dashboard stats
+  // Calculate dashboard stats from real data
   const stats: DashboardStats = {
     totalInvestment: Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => sum + h.totalInvested, 0) : 0,
     totalValue: Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => sum + (h.tokenAmount * (h.property?.tokenPrice || 0)), 0) : 0,
     propertiesOwned: Array.isArray(holdings) ? holdings.length : 0,
-    monthlyIncome: Array.isArray(incomeHistory) ? incomeHistory.reduce((sum: number, income: any) => sum + income.totalAmount, 0) : 1840,
+    monthlyIncome: Array.isArray(incomeHistory) ? incomeHistory.reduce((sum: number, income: any) => sum + income.totalAmount, 0) : 0,
     totalTokens: Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => sum + h.tokenAmount, 0) : 0,
-    growthPercentage: 12.5
+    growthPercentage: (() => {
+      const totalInvested = Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => sum + h.totalInvested, 0) : 0;
+      const totalCurrent = Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => sum + (h.tokenAmount * (h.property?.tokenPrice || 0)), 0) : 0;
+      return totalInvested > 0 ? ((totalCurrent - totalInvested) / totalInvested) * 100 : 0;
+    })()
   };
 
-  const recentIncome = [
-    {
-      propertyName: "Manhattan Apartment",
-      propertyId: "NYC001",
-      amount: 245,
-      month: "Dec 2024",
-      icon: "home"
-    },
-    {
-      propertyName: "Brooklyn Condo",
-      propertyId: "NYC002", 
-      amount: 180,
-      month: "Dec 2024",
-      icon: "building"
-    },
-    {
-      propertyName: "Miami Beach House",
-      propertyId: "MIA001",
-      amount: 320,
-      month: "Dec 2024",
-      icon: "home"
-    }
-  ];
+  // Generate recent income from actual data
+  const recentIncomeData = Array.isArray(incomeHistory) && incomeHistory.length > 0 
+    ? incomeHistory.slice(0, 3).map((income: any) => ({
+        propertyName: income.propertyName || `Property ${income.propertyId}`,
+        propertyId: income.propertyId,
+        amount: income.totalAmount || income.amount,
+        month: new Date(income.date || income.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        icon: "home"
+      }))
+    : [];
 
   return (
     <div className="space-y-6">
@@ -88,7 +79,9 @@ export default function InvestorDashboard() {
               <div>
                 <p className="text-muted-foreground text-sm">Total Investment</p>
                 <p className="text-2xl font-bold">${stats.totalInvestment.toLocaleString()}</p>
-                <p className="text-green-600 text-sm">+{stats.growthPercentage}% this month</p>
+                <p className={`text-sm ${stats.growthPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {stats.growthPercentage >= 0 ? '+' : ''}{stats.growthPercentage.toFixed(1)}% portfolio growth
+                </p>
               </div>
               <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
                 <TrendingUp className="h-6 w-6 text-primary" />
@@ -118,7 +111,9 @@ export default function InvestorDashboard() {
               <div>
                 <p className="text-muted-foreground text-sm">Monthly Income</p>
                 <p className="text-2xl font-bold">${stats.monthlyIncome.toLocaleString()}</p>
-                <p className="text-green-600 text-sm">+8.2% from last month</p>
+                <p className="text-muted-foreground text-sm">
+                  {stats.monthlyIncome > 0 ? "From property distributions" : "Start investing to earn income"}
+                </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                 <Coins className="h-6 w-6 text-green-600" />
@@ -161,8 +156,13 @@ export default function InvestorDashboard() {
             <div className="h-64 bg-muted rounded-lg flex items-center justify-center">
               <div className="text-center">
                 <TrendingUp className="h-12 w-12 text-primary mb-2 mx-auto" />
-                <p className="text-muted-foreground">Portfolio Growth Chart</p>
-                <p className="text-sm text-muted-foreground">Chart integration coming soon</p>
+                <p className="text-muted-foreground">Portfolio Performance</p>
+                <p className="text-sm text-muted-foreground">
+                  {stats.totalInvestment > 0 
+                    ? `Total Growth: ${stats.growthPercentage >= 0 ? '+' : ''}${stats.growthPercentage.toFixed(1)}%`
+                    : "Start investing to see your portfolio performance"
+                  }
+                </p>
               </div>
             </div>
           </CardContent>
@@ -175,23 +175,31 @@ export default function InvestorDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentIncome.map((income, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <Home className="h-5 w-5 text-green-600" />
+              {recentIncomeData.length > 0 ? (
+                recentIncomeData.map((income: any, index: number) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <Home className="h-5 w-5 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{income.propertyName}</p>
+                        <p className="text-sm text-muted-foreground">Property ID: {income.propertyId}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">{income.propertyName}</p>
-                      <p className="text-sm text-muted-foreground">Property ID: {income.propertyId}</p>
+                    <div className="text-right">
+                      <p className="font-semibold text-green-600">+${income.amount}</p>
+                      <p className="text-sm text-muted-foreground">{income.month}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-green-600">+${income.amount}</p>
-                    <p className="text-sm text-muted-foreground">{income.month}</p>
-                  </div>
+                ))
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  <Home className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
+                  <p>No recent income distributions</p>
+                  <p className="text-sm">Income will appear here once you start earning from your investments</p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>

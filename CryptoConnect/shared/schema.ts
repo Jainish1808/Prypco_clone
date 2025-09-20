@@ -42,8 +42,15 @@ export const propertySchema = z.object({
   tokensAvailable: z.number().min(0),
   tokensSold: z.number().min(0).default(0),
   
+  // XRPL Tokenization
+  tokenSymbol: z.string().optional(),
+  xrplTokenCreated: z.boolean().default(false),
+  xrplIssuerAddress: z.string().optional(),
+  xrplCreationTxHash: z.string().optional(),
+  xrplExplorerUrl: z.string().optional(),
+  
   // Status and approval
-  status: z.enum(["pending", "approved", "rejected", "listed"]).default("pending"),
+  status: z.enum(["pending", "approved", "rejected", "listed", "tokenized"]).default("pending"),
   approvedAt: z.date().optional(),
   listedAt: z.date().optional(),
   
@@ -65,6 +72,11 @@ export const insertPropertySchema = propertySchema.omit({
   tokenPrice: true,
   tokensAvailable: true,
   tokensSold: true,
+  tokenSymbol: true,
+  xrplTokenCreated: true,
+  xrplIssuerAddress: true,
+  xrplCreationTxHash: true,
+  xrplExplorerUrl: true,
   approvedAt: true,
   listedAt: true,
 });

@@ -25,10 +25,18 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Loader2, Upload, CheckCircle, ImageIcon } from "lucide-react";
+import {
+  Loader2,
+  Upload,
+  CheckCircle,
+  ImageIcon,
+  ExternalLink,
+  Wallet,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import WalletConnect from "@/components/wallet/WalletConnect";
 
 interface PropertySubmissionFormProps {
   onSuccess: () => void;
@@ -82,7 +90,9 @@ export default function PropertySubmissionForm({
   const [currentStep, setCurrentStep] = useState(1);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const totalSteps = 4;
+  const [walletConnected, setWalletConnected] = useState(false);
+  const [walletInfo, setWalletInfo] = useState<any>(null);
+  const totalSteps = 5;
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -146,13 +156,42 @@ export default function PropertySubmissionForm({
         throw error;
       }
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       console.log("Property submitted successfully:", data);
+
+      // Show success message with XRP tokenization info
+      const hasTokenInfo = data?.token_symbol && data?.xrpl_explorer_url;
+
       toast({
-        title: "Property Submitted",
-        description:
-          "Your property has been submitted for review successfully.",
+        title: "🎉 Property Tokenized Successfully!",
+        description: hasTokenInfo
+          ? `Property tokens (${data.token_symbol}) created on XRP Ledger. Check your wallet!`
+          : "Your property has been submitted for review successfully.",
       });
+
+      // If tokenization info is available, show additional details
+      if (hasTokenInfo) {
+        setTimeout(() => {
+          toast({
+            title: "🔗 View on XRP Explorer",
+            description: (
+              <div className="space-y-2">
+                <p>Token Symbol: {data.token_symbol}</p>
+                <p>Total Tokens: {data.total_tokens?.toLocaleString()}</p>
+                <a
+                  href={data.xrpl_explorer_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 underline hover:text-blue-800"
+                >
+                  View on XRP Testnet Explorer →
+                </a>
+              </div>
+            ),
+          });
+        }, 2000);
+      }
+
       queryClient.invalidateQueries({ queryKey: ["/api/seller/properties"] });
       onSuccess();
     },
@@ -198,6 +237,16 @@ export default function PropertySubmissionForm({
   };
 
   const nextStep = () => {
+    // Validate wallet connection on step 4
+    if (currentStep === 4 && !walletConnected) {
+      toast({
+        title: "Wallet Required",
+        description: "Please connect your XRP wallet to continue",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
     }
@@ -723,8 +772,63 @@ export default function PropertySubmissionForm({
               </div>
             )}
 
-            {/* Step 4: Review */}
+            {/* Step 4: Wallet Verification */}
             {currentStep === 4 && (
+              <div className="space-y-6">
+                <h3 className="text-lg font-semibold">
+                  Connect Your XRP Wallet
+                </h3>
+                <p className="text-muted-foreground">
+                  Connect your XRP wallet to receive property tokens and manage
+                  your investments on the blockchain.
+                </p>
+
+                <WalletConnect
+                  onWalletConnected={(info) => {
+                    setWalletConnected(true);
+                    setWalletInfo(info);
+                  }}
+                />
+
+                {/* Auto-connect if user already has wallet */}
+                <div className="mt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setWalletConnected(true);
+                      setWalletInfo({
+                        address: "Auto-connected",
+                        xrp_balance: 10.0,
+                      });
+                    }}
+                  >
+                    Skip - Use Assigned Wallet
+                  </Button>
+                </div>
+
+                {walletConnected && walletInfo && (
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-2 text-green-800">
+                      <CheckCircle className="h-5 w-5" />
+                      <span className="font-medium">
+                        Wallet Connected Successfully!
+                      </span>
+                    </div>
+                    <p className="text-green-700 text-sm mt-1">
+                      Your property tokens will be sent to: {walletInfo.address}
+                    </p>
+                    <p className="text-green-700 text-sm">
+                      Current XRP Balance: {walletInfo.xrp_balance?.toFixed(6)}{" "}
+                      XRP
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 5: Review */}
+            {currentStep === 5 && (
               <div className="space-y-6">
                 <h3 className="text-lg font-semibold">
                   Review Your Submission

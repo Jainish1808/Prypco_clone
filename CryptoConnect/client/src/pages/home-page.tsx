@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
 import InvestorDashboard from "@/pages/investor-dashboard";
@@ -95,7 +96,18 @@ export default function HomePage() {
       case "market":
         return <SecondaryMarket />;
       case "income":
-        return <div>Income History - Coming Soon</div>;
+        return <div className="p-6 text-center">
+          <h3 className="text-lg font-semibold mb-2">Income History</h3>
+          <p className="text-muted-foreground mb-4">
+            Track your rental income and dividend distributions from property investments
+          </p>
+          <Button 
+            onClick={() => handlePageChange("portfolio")}
+            data-testid="button-view-portfolio"
+          >
+            View Portfolio Details
+          </Button>
+        </div>;
       case "seller-dashboard":
         return <SellerDashboard onNavigate={handlePageChange} />;
       case "submit-property":

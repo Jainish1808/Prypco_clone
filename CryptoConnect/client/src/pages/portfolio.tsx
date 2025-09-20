@@ -20,6 +20,12 @@ export default function Portfolio() {
     enabled: !!user && user.userType === 'investor' && api.isAuthenticated(),
   });
 
+  const { data: incomeHistory } = useQuery({
+    queryKey: ["/api/investor/income-statements"],
+    queryFn: () => api.getUserIncomeStatements(),
+    enabled: !!user && user.userType === 'investor' && api.isAuthenticated(),
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -42,15 +48,18 @@ export default function Portfolio() {
   }
 
   const totalValue = holdings?.reduce((sum, holding) => {
-    if (!holding.property) return sum;
-    return sum + (holding.tokenAmount * holding.property.tokenPrice);
+    if (!(holding as any).property) return sum;
+    const tokenAmount = (holding as any).tokenAmount || (holding as any).token_amount || 0;
+    return sum + (tokenAmount * (holding as any).property.tokenPrice);
   }, 0) || 0;
 
-  const totalInvested = holdings?.reduce((sum, holding) => sum + holding.totalInvested, 0) || 0;
+  const totalInvested = holdings?.reduce((sum, holding) => sum + holding.total_investment, 0) || 0;
   const totalGainLoss = totalValue - totalInvested;
   const totalGainLossPercent = totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0;
 
-  const monthlyIncome = 1840; // This would come from income calculations
+  const monthlyIncome = Array.isArray(incomeHistory) 
+    ? incomeHistory.reduce((sum: number, income: any) => sum + (income.totalAmount || income.amount || 0), 0) 
+    : 0;
   const properties = holdings?.length || 0;
 
   if (!holdings || holdings.length === 0) {
@@ -135,43 +144,49 @@ export default function Portfolio() {
                 </tr>
               </thead>
               <tbody>
-                {holdings.map((holding, index) => {
-                  if (!holding.property) return null;
+                {holdings.map((holding: any, index) => {
+                  const property = holding.property;
+                  if (!property) return null;
                   
-                  const currentValue = holding.tokenAmount * holding.property.tokenPrice;
-                  const gainLoss = currentValue - holding.totalInvested;
-                  const gainLossPercent = (gainLoss / holding.totalInvested) * 100;
-                  const ownershipPercent = (holding.tokenAmount / holding.property.totalTokens) * 100;
+                  const tokenAmount = holding.tokenAmount || holding.token_amount || 0;
+                  const totalInvested = holding.totalInvested || holding.total_invested || 0;
+                  const averagePurchasePrice = holding.averagePurchasePrice || holding.average_purchase_price || 0;
+                  const currentValue = tokenAmount * (property.tokenPrice || property.token_price || 0);
+                  const gainLoss = currentValue - totalInvested;
+                  const gainLossPercent = totalInvested > 0 ? (gainLoss / totalInvested) * 100 : 0;
+                  const ownershipPercent = (property.totalTokens || property.total_tokens) > 0 
+                    ? (tokenAmount / (property.totalTokens || property.total_tokens)) * 100 
+                    : 0;
 
                   return (
-                    <tr key={holding.id} className="border-b border-border" data-testid={`holding-row-${index}`}>
+                    <tr key={holding.id || index} className="border-b border-border" data-testid={`holding-row-${index}`}>
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
                             <Home className="h-5 w-5 text-primary" />
                           </div>
                           <div>
-                            <p className="font-medium">{holding.property.name}</p>
-                            <p className="text-sm text-muted-foreground">{holding.property.address}</p>
+                            <p className="font-medium">{property.name || property.title}</p>
+                            <p className="text-sm text-muted-foreground">{property.address}</p>
                           </div>
                         </div>
                       </td>
                       <td className="py-4 px-4">
                         <div>
-                          <p className="font-medium">{holding.tokenAmount.toLocaleString()}</p>
+                          <p className="font-medium">{tokenAmount.toLocaleString()}</p>
                           <p className="text-sm text-muted-foreground">{ownershipPercent.toFixed(2)}% ownership</p>
                         </div>
                       </td>
                       <td className="py-4 px-4">
-                        <p className="font-medium">${holding.totalInvested.toLocaleString()}</p>
+                        <p className="font-medium">${totalInvested.toLocaleString()}</p>
                         <p className="text-sm text-muted-foreground">
-                          ${holding.averagePurchasePrice.toFixed(2)}/token
+                          ${averagePurchasePrice.toFixed(2)}/token
                         </p>
                       </td>
                       <td className="py-4 px-4">
                         <p className="font-medium">${currentValue.toLocaleString()}</p>
                         <p className="text-sm text-muted-foreground">
-                          ${holding.property.tokenPrice.toFixed(2)}/token
+                          ${(property.tokenPrice || property.token_price || 0).toFixed(2)}/token
                         </p>
                       </td>
                       <td className="py-4 px-4">
@@ -214,8 +229,13 @@ export default function Portfolio() {
           <div className="h-64 bg-muted rounded-lg flex items-center justify-center">
             <div className="text-center">
               <TrendingUp className="h-12 w-12 text-primary mb-2 mx-auto" />
-              <p className="text-muted-foreground">Portfolio Performance Chart</p>
-              <p className="text-sm text-muted-foreground">Chart integration coming soon</p>
+              <p className="text-muted-foreground">Portfolio Performance</p>
+              <p className="text-sm text-muted-foreground">
+                {totalInvested > 0 
+                  ? `Growth: ${totalGainLossPercent >= 0 ? '+' : ''}${totalGainLossPercent.toFixed(1)}%`
+                  : "Performance tracking will appear after you make investments"
+                }
+              </p>
             </div>
           </div>
         </CardContent>

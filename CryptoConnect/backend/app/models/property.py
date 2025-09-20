@@ -67,6 +67,8 @@ class Property(Document):
     xrpl_token_created: bool = False
     xrpl_issuer_address: Optional[str] = None
     xrpl_creation_tx_hash: Optional[str] = None
+    xrpl_explorer_url: Optional[str] = None  # Link to testnet explorer
+    token_holders: List[Dict[str, Any]] = []  # List of current token holders
     
     # Timestamps
     created_at: datetime = datetime.utcnow()

@@ -9,14 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Home, Percent, Calendar, Loader2, MapPin, Bed, Bath, Car } from "lucide-react";
 import { api, Property } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { useNotifications } from "@/hooks/use-notifications";
 
 interface PropertyCardProps {
   property: Property;
 }
 
 export default function PropertyCard({ property }: PropertyCardProps) {
-  const { toast } = useToast();
+  const { showToastAndNotification } = useNotifications();
   const [isInvestmentOpen, setIsInvestmentOpen] = useState(false);
   const [tokenAmount, setTokenAmount] = useState("");
 
@@ -25,21 +25,40 @@ export default function PropertyCard({ property }: PropertyCardProps) {
       return await api.investInProperty(property.id, investmentData);
     },
     onSuccess: (data) => {
-      toast({
-        title: "Investment Successful",
-        description: `You have successfully purchased ${tokenAmount} tokens!`,
-      });
+      showToastAndNotification(
+        "Investment Successful",
+        `You have successfully purchased ${tokenAmount} tokens!`,
+        "success"
+      );
       queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
       queryClient.invalidateQueries({ queryKey: ["/api/investor/holdings"] });
       setIsInvestmentOpen(false);
       setTokenAmount("");
     },
     onError: (error: Error) => {
-      toast({
-        title: "Investment Failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      // Enhanced error handling with more details
+      let errorMessage = error.message;
+      let errorTitle = "Investment Failed";
+      
+      if (error.message.includes("Failed to tokenize property")) {
+        errorTitle = "Property Tokenization Failed";
+        errorMessage = "The property could not be tokenized on the XRP Ledger. This might be due to XRP network issues or backend configuration problems. Please contact support.";
+      } else if (error.message.includes("Not enough tokens available")) {
+        errorTitle = "Insufficient Token Supply";
+        errorMessage = "There are not enough tokens available for your requested investment amount. Please try a smaller amount.";
+      } else if (error.message.includes("KYC")) {
+        errorTitle = "KYC Verification Required";
+        errorMessage = "Please complete your KYC verification before investing in properties.";
+      } else if (error.message.includes("wallet")) {
+        errorTitle = "Wallet Setup Required";
+        errorMessage = "Your XRP wallet setup failed. Please try again or contact support.";
+      }
+      
+      showToastAndNotification(
+        errorTitle,
+        errorMessage,
+        "error"
+      );
     },
   });
 
@@ -48,21 +67,21 @@ export default function PropertyCard({ property }: PropertyCardProps) {
     
     const tokens = parseInt(tokenAmount);
     if (!tokens || tokens < 100) {
-      toast({
-        title: "Invalid Amount",
-        description: "Minimum investment is 100 tokens.",
-        variant: "destructive",
-      });
+      showToastAndNotification(
+        "Invalid Amount",
+        "Minimum investment is 100 tokens.",
+        "error"
+      );
       return;
     }
 
     const tokensAvailable = property.total_tokens - property.tokens_sold;
     if (tokens > tokensAvailable) {
-      toast({
-        title: "Insufficient Supply",
-        description: "Not enough tokens available for this investment amount.",
-        variant: "destructive",
-      });
+      showToastAndNotification(
+        "Insufficient Supply",
+        "Not enough tokens available for this investment amount.",
+        "error"
+      );
       return;
     }
 
@@ -273,7 +292,7 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                   {investmentMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Investing...
+                      {property.xrplTokenCreated ? 'Processing Investment...' : 'Tokenizing Property...'}
                     </>
                   ) : (
                     `Invest AED ${totalInvestment.toLocaleString()}`

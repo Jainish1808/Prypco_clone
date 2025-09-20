@@ -4,6 +4,7 @@ from datetime import datetime
 from app.models.property import Property, PropertyCreate, PropertyResponse, PropertyUpdateSeller
 from app.models.user import User
 from app.auth import get_current_active_user, get_current_user
+from app.services.tokenization_service import tokenization_service
 from pydantic import BaseModel
 import logging
 
@@ -82,6 +83,29 @@ async def submit_property(
         await property_obj.save()
         
         logger.info(f"Property {property_obj.id} saved successfully")
+
+        # Tokenize the property
+        logger.info(f"Starting tokenization for property {property_obj.id}")
+        tokenization_success = await tokenization_service.tokenize_property(property_obj)
+        if tokenization_success:
+            logger.info(f"Property {property_obj.id} tokenized successfully")
+            
+            # Refresh the property object to get updated tokenization details
+            property_obj = await Property.get(property_obj.id)
+            
+            # Log the tokenization success with explorer links
+            if property_obj.xrpl_explorer_url:
+                logger.info(f"🚀 TOKENIZATION SUCCESSFUL!")
+                logger.info(f"📍 Property: {property_obj.title}")
+                logger.info(f"🪙 Token Symbol: {property_obj.token_symbol}")
+                logger.info(f"💰 Total Supply: {property_obj.total_tokens} tokens")
+                logger.info(f"💲 Token Price: {property_obj.token_price:.6f} AED per token")
+                logger.info(f"🔗 XRP Testnet Explorer: {property_obj.xrpl_explorer_url}")
+                logger.info(f"🏦 Issuer Address: {property_obj.xrpl_issuer_address}")
+                logger.info(f"📊 View on XRPL Explorer: https://testnet.xrpl.org/accounts/{property_obj.xrpl_issuer_address}")
+        else:
+            logger.error(f"Property {property_obj.id} tokenization failed")
+            # You might want to handle this failure case, e.g., by updating the property status
         
         response = PropertyResponse(
             id=str(property_obj.id),
@@ -123,8 +147,145 @@ async def submit_property(
         )
 
 
-@router.get("/properties-debug")
-async def get_seller_properties_debug():
+@router.get("/property/{property_id}/tokenization")
+async def get_property_tokenization_details(
+    property_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed tokenization information for a property"""
+    try:
+        logger.info(f"Fetching tokenization details for property {property_id}")
+        
+        property_obj = await Property.get(property_id)
+        if not property_obj:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Property not found"
+            )
+        
+        # Check if user is the seller
+        if property_obj.seller_id != str(current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only view tokenization details for your own properties"
+            )
+        
+        tokenization_details = {
+            "property_id": str(property_obj.id),
+            "title": property_obj.title,
+            "status": property_obj.status,
+            "tokenized": property_obj.xrpl_token_created,
+            "token_details": {}
+        }
+        
+        if property_obj.xrpl_token_created:
+            tokenization_details["token_details"] = {
+                "token_symbol": property_obj.token_symbol,
+                "total_tokens": property_obj.total_tokens,
+                "token_price": property_obj.token_price,
+                "tokens_sold": property_obj.tokens_sold,
+                "tokens_available": property_obj.total_tokens - property_obj.tokens_sold,
+                "xrpl_details": {
+                    "issuer_address": property_obj.xrpl_issuer_address,
+                    "creation_tx_hash": property_obj.xrpl_creation_tx_hash,
+                    "explorer_url": property_obj.xrpl_explorer_url,
+                    "issuer_explorer_url": f"https://testnet.xrpl.org/accounts/{property_obj.xrpl_issuer_address}",
+                    "network": "XRP Testnet"
+                }
+            }
+            
+            # Try to get live token information from XRP Ledger
+            try:
+                from app.services.xrpl_service import xrpl_service
+                token_verification = await xrpl_service.verify_token_on_ledger(
+                    property_obj.token_symbol,
+                    property_obj.xrpl_issuer_address
+                )
+                
+                if token_verification:
+                    tokenization_details["token_details"]["live_data"] = {
+                        "verified_on_ledger": token_verification.get("exists", False),
+                        "live_total_supply": token_verification.get("total_supply", "0"),
+                        "current_holders": len(token_verification.get("holders", [])),
+                        "holder_details": token_verification.get("holders", [])
+                    }
+                    
+            except Exception as e:
+                logger.warning(f"Could not fetch live token data: {str(e)}")
+                tokenization_details["token_details"]["live_data"] = {
+                    "error": "Unable to fetch live data from XRP Ledger"
+                }
+        
+        return tokenization_details
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting tokenization details: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get tokenization details: {str(e)}"
+        )
+
+
+@router.post("/property/{property_id}/retokenize")
+async def retokenize_property(
+    property_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Retry tokenization for a property that failed"""
+    try:
+        logger.info(f"Retrying tokenization for property {property_id}")
+        
+        property_obj = await Property.get(property_id)
+        if not property_obj:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Property not found"
+            )
+        
+        # Check if user is the seller
+        if property_obj.seller_id != str(current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only retokenize your own properties"
+            )
+        
+        # Check if already tokenized
+        if property_obj.xrpl_token_created:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Property is already tokenized"
+            )
+        
+        # Retry tokenization
+        tokenization_success = await tokenization_service.tokenize_property(property_obj)
+        
+        if tokenization_success:
+            # Refresh the property object
+            property_obj = await Property.get(property_obj.id)
+            
+            return {
+                "success": True,
+                "message": "Property tokenized successfully",
+                "token_symbol": property_obj.token_symbol,
+                "explorer_url": property_obj.xrpl_explorer_url,
+                "issuer_address": property_obj.xrpl_issuer_address
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Tokenization failed. Please try again later."
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retokenizing property: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retokenize property: {str(e)}"
+        )
     """Debug endpoint to get all properties without authentication"""
     try:
         logger.info("Fetching all properties for debug")

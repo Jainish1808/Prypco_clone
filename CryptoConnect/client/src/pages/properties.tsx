@@ -16,6 +16,15 @@ export default function Properties() {
     queryFn: () => api.getProperties(),
   });
 
+  // Get unique locations and property types from available properties
+  const uniqueLocations = Array.from(new Set(
+    properties?.map((p: any) => p.city?.toLowerCase()).filter(Boolean) || []
+  )).sort();
+  
+  const uniquePropertyTypes = Array.from(new Set(
+    properties?.map((p: any) => p.property_type?.toLowerCase()).filter(Boolean) || []
+  )).sort();
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -65,10 +74,11 @@ export default function Properties() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Locations</SelectItem>
-              <SelectItem value="dubai">Dubai</SelectItem>
-              <SelectItem value="abu dhabi">Abu Dhabi</SelectItem>
-              <SelectItem value="sharjah">Sharjah</SelectItem>
-              <SelectItem value="ajman">Ajman</SelectItem>
+              {uniqueLocations.map((location) => (
+                <SelectItem key={location} value={location}>
+                  {location.charAt(0).toUpperCase() + location.slice(1)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           
@@ -78,11 +88,11 @@ export default function Properties() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Types</SelectItem>
-              <SelectItem value="apartment">Apartment</SelectItem>
-              <SelectItem value="villa">Villa</SelectItem>
-              <SelectItem value="office">Office</SelectItem>
-              <SelectItem value="retail">Retail</SelectItem>
-              <SelectItem value="warehouse">Warehouse</SelectItem>
+              {uniquePropertyTypes.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

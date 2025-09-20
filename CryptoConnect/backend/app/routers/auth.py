@@ -9,6 +9,10 @@ from app.auth import (
     get_current_active_user
 )
 from app.config import settings
+# from app.services.wallet_service import wallet_service
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["authentication"])
 
@@ -52,6 +56,9 @@ async def register_user(user_data: UserCreate):
         first_name=first_name,
         last_name=last_name
     )
+    
+    # XRP wallet assignment temporarily disabled
+    # Will be assigned manually using the database script
     
     await user.save()
     

@@ -8,6 +8,7 @@ from enum import Enum
 class TransactionType(str, Enum):
     TOKEN_PURCHASE = "token_purchase"
     TOKEN_SALE = "token_sale"
+    TOKEN_TRANSFER = "token_transfer"  # New: User to user token transfer
     RENTAL_DISTRIBUTION = "rental_distribution"
     SECONDARY_MARKET_BUY = "secondary_market_buy"
     SECONDARY_MARKET_SELL = "secondary_market_sell"
