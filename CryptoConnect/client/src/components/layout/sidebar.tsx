@@ -1,5 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import { SettingsDialog } from "@/components/settings-dialog";
+import { useState } from "react";
 import { 
   Home, 
   TrendingUp, 
@@ -33,7 +35,8 @@ export default function Sidebar({
   isOpen,
   onClose
 }: SidebarProps) {
-  const { user, logoutMutation } = useAuth();  const investorNavItems = [
+  const { user, logoutMutation } = useAuth();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);  const investorNavItems = [
     { id: "dashboard" as PageView, label: "Dashboard", icon: TrendingUp },
     { id: "properties" as PageView, label: "Properties", icon: Home },
     { id: "portfolio" as PageView, label: "My Portfolio", icon: Wallet },
@@ -61,6 +64,10 @@ export default function Sidebar({
 
   const handleLogout = () => {
     logoutMutation.mutate();
+  };
+
+  const handleSettingsOpen = () => {
+    setIsSettingsOpen(true);
   };
 
   return (
@@ -152,7 +159,13 @@ export default function Sidebar({
           </div>
           
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="flex-1">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex-1"
+              onClick={handleSettingsOpen}
+              data-testid="button-settings"
+            >
               <Settings className="h-4 w-4" />
             </Button>
             <Button 
@@ -168,6 +181,11 @@ export default function Sidebar({
           </div>
         </div>
       </div>
+      
+      <SettingsDialog
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </>
   );
 }
