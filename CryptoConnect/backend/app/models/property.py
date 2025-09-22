@@ -159,3 +159,4 @@ class InvestmentRequest(BaseModel):
     property_id: str
     investment_amount: float  # Amount in AED
     tokens_to_purchase: int
+    investment_amount_xrp: float

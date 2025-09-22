@@ -3,7 +3,7 @@ from typing import List, Optional
 from datetime import datetime
 from app.models.property import Property, PropertyCreate, PropertyResponse, PropertyUpdateSeller
 from app.models.user import User
-from app.auth import get_current_active_user, get_current_user
+from app.auth import get_current_active_user, get_current_user, get_current_seller
 from app.services.tokenization_service import tokenization_service
 from pydantic import BaseModel
 import logging
@@ -29,9 +29,9 @@ class PropertyCreateWithImages(PropertyCreate):
 @router.post("/property/submit", response_model=PropertyResponse)
 async def submit_property(
     property_data: PropertyCreateWithImages,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_seller)
 ):
-    """Submit a new property for review"""
+    """Submit a new property for review - SELLER ACCESS ONLY"""
     try:
         logger.info(f"Property submission received from user {current_user.id}: {property_data.title}")
         logger.info(f"Property data: {property_data.dict()}")
@@ -313,8 +313,8 @@ async def retokenize_property(
 
 
 @router.get("/properties", response_model=List[PropertyResponse])
-async def get_seller_properties(current_user: User = Depends(get_current_user)):
-    """Get all properties submitted by the current seller"""
+async def get_seller_properties(current_user: User = Depends(get_current_seller)):
+    """Get all properties submitted by the current seller - SELLER ACCESS ONLY"""
     try:
         logger.info(f"Fetching properties for seller {current_user.id}")
         logger.info(f"User role: {current_user.role}")

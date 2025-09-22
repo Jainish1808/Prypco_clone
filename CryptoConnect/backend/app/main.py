@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from fastapi import Depends
@@ -7,6 +7,8 @@ from app.routers import auth, properties, seller, investor, admin, upload, marke
 from app.config import settings
 from app.auth import get_current_active_user
 from app.models.user import User
+
+print("🔥 MAIN.PY LOADED - Server starting with debugging enabled!")
 
 
 @asynccontextmanager
@@ -34,26 +36,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add middleware to log all requests
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    print(f"🌐 INCOMING REQUEST: {request.method} {request.url.path}")
+    response = await call_next(request)
+    print(f"🌐 RESPONSE STATUS: {response.status_code}")
+    return response
+
 # Include routers
+print("🔥 INCLUDING ROUTERS...")
 app.include_router(auth.router)
+print("🔥 AUTH ROUTER INCLUDED")
 app.include_router(properties.router)
+print("🔥 PROPERTIES ROUTER INCLUDED")
 app.include_router(seller.router)
+print("🔥 SELLER ROUTER INCLUDED")
 app.include_router(investor.router)
+print("🔥 INVESTOR ROUTER INCLUDED!")
 app.include_router(admin.router)
+print("🔥 ADMIN ROUTER INCLUDED")
 app.include_router(upload.router)
 app.include_router(market.router)
 app.include_router(tokens.router)
 app.include_router(simple_wallet.router)
 app.include_router(wallet.router)
 app.include_router(debug.router)
-
+print("🔥 ALL ROUTERS INCLUDED!")
 
 @app.get("/")
 async def root():
-    return {"message": "CryptoConnect API is running"}
+    print("🏠 ROOT ENDPOINT CALLED!")
+    return {"message": "CryptoConnect API is running", "debug": "Server is working!", "test": True}
 
+@app.get("/api/test-simple")
+async def simple_test():
+    print("🧪🧪🧪 SIMPLE TEST ENDPOINT CALLED!")
+    return {"status": "working", "message": "Test successful", "timestamp": "2025-09-22"}
 
 @app.get("/health")
+async def health():
+    print("❤️ HEALTH CHECK CALLED!")
+    return {"message": "CryptoConnect API is healthy"}
 async def health_check():
     return {"status": "healthy", "message": "CryptoConnect API is running"}
 

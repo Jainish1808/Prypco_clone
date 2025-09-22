@@ -53,16 +53,13 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except JWTError:
         raise credentials_exception
     
-    try:
-        from bson import ObjectId
-        # Try to convert to ObjectId if it's a valid ObjectId string
-        if ObjectId.is_valid(user_id):
-            user = await User.get(ObjectId(user_id))
-        else:
-            user = await User.get(user_id)
-    except Exception:
-        # Fallback to string lookup
-        user = await User.find_one(User.id == user_id)
+    from bson import ObjectId
+
+    if not ObjectId.is_valid(user_id):
+        # If the ID from the token is not a valid ObjectId, then it's a bad token.
+        raise credentials_exception
+    
+    user = await User.get(ObjectId(user_id))
         
     if user is None:
         raise credentials_exception
@@ -88,7 +85,15 @@ async def get_current_seller(current_user: User = Depends(get_current_active_use
     """Get the current seller user (or admin)"""
     from app.models.user import UserRole
     if current_user.role not in [UserRole.SELLER, UserRole.ADMIN]:
-        raise HTTPException(status_code=403, detail=f"Not authorized as seller. Current role: {current_user.role}")
+        raise HTTPException(status_code=403, detail=f"Access denied: Seller access required. Current role: {current_user.role}")
+    return current_user
+
+
+async def get_current_investor(current_user: User = Depends(get_current_active_user)) -> User:
+    """Get the current investor user (or admin)"""
+    from app.models.user import UserRole
+    if current_user.role not in [UserRole.INVESTOR, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail=f"Access denied: Investor access required. Current role: {current_user.role}")
     return current_user
 
 
@@ -96,5 +101,5 @@ async def get_current_admin(current_user: User = Depends(get_current_active_user
     """Get the current admin user"""
     from app.models.user import UserRole
     if current_user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="Not authorized as admin")
+        raise HTTPException(status_code=403, detail="Access denied: Admin access required")
     return current_user

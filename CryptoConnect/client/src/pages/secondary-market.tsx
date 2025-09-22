@@ -41,6 +41,37 @@ export default function SecondaryMarket() {
     enabled: !!user && api.isAuthenticated(),
   });
 
+  // Get user's holdings for sell orders - always enabled when sell is selected
+  const { data: userHoldings } = useQuery({
+    queryKey: ["/api/investor/holdings"],
+    queryFn: () => api.getUserHoldings(),
+    enabled: !!user && user.userType === 'investor' && api.isAuthenticated(),
+  });
+
+  // Get user's portfolio stats for portfolio value display
+  const { data: portfolioStats } = useQuery({
+    queryKey: ["/api/investor/stats"],
+    queryFn: () => api.getInvestorStats(),
+    enabled: !!user && user.userType === 'investor' && api.isAuthenticated(),
+  });
+
+  // Filter properties based on order type
+  const availableProperties = orderType === 'sell' 
+    ? userHoldings?.filter((holding: any) => {
+        const tokenAmount = holding.tokenAmount || holding.token_amount || 0;
+        return tokenAmount > 0;
+      }).map((holding: any) => ({
+        ...holding.property,
+        tokenAmount: holding.tokenAmount || holding.token_amount
+      })).filter(Boolean) || []
+    : properties || [];
+
+  // Debug logging for troubleshooting
+  console.log('🔍 Debug - Order Type:', orderType);
+  console.log('🔍 Debug - User Holdings:', userHoldings);
+  console.log('🔍 Debug - Available Properties:', availableProperties);
+  console.log('🔍 Debug - All Properties:', properties);
+
   const buyOrders = marketOrders?.filter(order => order.orderType === "buy") || [];
   const sellOrders = marketOrders?.filter(order => order.orderType === "sell") || [];
 
@@ -117,16 +148,27 @@ export default function SecondaryMarket() {
     );
   }
 
-  // Calculate market stats
+  // Calculate market stats dynamically
+  const portfolioValue = portfolioStats?.totalInvestment || 0;
   const totalOrders = marketOrders?.length || 0;
-  const volume24h = 125000; // This would be calculated from recent transactions
-  const completedToday = 12;
-  const avgPrice = 28.50;
+  const volume24h = marketOrders?.reduce((sum, order) => {
+    return sum + (order.tokenAmount * order.pricePerToken);
+  }, 0) || 0;
+  const completedToday = marketOrders?.filter(order => order.status === 'filled').length || 0;
+  const avgPrice = totalOrders > 0 && marketOrders
+    ? marketOrders.reduce((sum, order) => sum + order.pricePerToken, 0) / totalOrders 
+    : 0;
 
   return (
     <div className="space-y-6">
       {/* Market Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-green-600">${portfolioValue.toLocaleString()}</p>
+            <p className="text-sm text-muted-foreground">Portfolio</p>
+          </CardContent>
+        </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold text-primary">{totalOrders}</p>
@@ -147,7 +189,7 @@ export default function SecondaryMarket() {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold">${avgPrice}</p>
+            <p className="text-2xl font-bold">${avgPrice.toFixed(2)}</p>
             <p className="text-sm text-muted-foreground">Avg. Price</p>
           </CardContent>
         </Card>
@@ -181,12 +223,17 @@ export default function SecondaryMarket() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Select Property</SelectItem>
-                    {Array.isArray(properties) ? properties.map((property: Property) => (
+                    <SelectItem value="all">
+                      {orderType === 'sell' && availableProperties.length === 0 
+                        ? "No properties with tokens to sell" 
+                        : "Select Property"}
+                    </SelectItem>
+                    {availableProperties.map((property: any) => (
                       <SelectItem key={property.id} value={property.id}>
-                        {property.name}
+                        {property.name || property.title} 
+                        {orderType === 'sell' && property.tokenAmount && ` (${property.tokenAmount} tokens)`}
                       </SelectItem>
-                    )) : null}
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

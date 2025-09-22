@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,9 +19,46 @@ export default function PropertyCard({ property }: PropertyCardProps) {
   const { showToastAndNotification } = useNotifications();
   const [isInvestmentOpen, setIsInvestmentOpen] = useState(false);
   const [tokenAmount, setTokenAmount] = useState("");
+  const [xrpRate, setXrpRate] = useState<number | null>(null);
+  const [isXrpRateLoading, setIsXrpRateLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchXrpRate = async () => {
+      setIsXrpRateLoading(true);
+      try {
+        // First get USD to AED rate, then XRP to USD rate
+        const [aedResponse, xrpResponse] = await Promise.all([
+          fetch("https://api.exchangerate-api.com/v4/latest/USD"),
+          fetch("https://api.coingecko.com/api/v3/simple/price?ids=ripple&vs_currencies=usd")
+        ]);
+        
+        const aedData = await aedResponse.json();
+        const xrpData = await xrpResponse.json();
+        
+        // Calculate AED to XRP rate
+        // 1 XRP = xrpData.ripple.usd USD
+        // 1 USD = aedData.rates.AED AED
+        // So 1 AED = 1 / aedData.rates.AED USD
+        // And 1 AED = (1 / aedData.rates.AED) / xrpData.ripple.usd XRP
+        const usdToAed = aedData.rates.AED;
+        const xrpToUsd = xrpData.ripple.usd;
+        const aedToXrp = 1 / (usdToAed * xrpToUsd);
+        
+        setXrpRate(aedToXrp);
+        console.log("XRP Rate (AED to XRP):", aedToXrp);
+      } catch (error) {
+        console.error("Failed to fetch XRP exchange rate:", error);
+        // Set a fallback rate (you should update this periodically)
+        setXrpRate(0.0015); // Approximate fallback rate
+      } finally {
+        setIsXrpRateLoading(false);
+      }
+    };
+    fetchXrpRate();
+  }, []);
 
   const investmentMutation = useMutation({
-    mutationFn: async (investmentData: { property_id: string; investment_amount: number; tokens_to_purchase: number }) => {
+    mutationFn: async (investmentData: { property_id: string; investment_amount: number; tokens_to_purchase: number; investment_amount_xrp: number }) => {
       return await api.investInProperty(property.id, investmentData);
     },
     onSuccess: (data) => {
@@ -86,15 +123,18 @@ export default function PropertyCard({ property }: PropertyCardProps) {
     }
 
     const investmentAmount = tokens * property.token_price;
+    const investmentAmountXRP = xrpRate ? investmentAmount / xrpRate : 0;
 
     investmentMutation.mutate({
       property_id: property.id,
       investment_amount: investmentAmount,
-      tokens_to_purchase: tokens
+      tokens_to_purchase: tokens,
+      investment_amount_xrp: investmentAmountXRP
     });
   };
 
   const totalInvestment = tokenAmount ? parseInt(tokenAmount) * property.token_price : 0;
+  const totalInvestmentXRP = xrpRate ? totalInvestment / xrpRate : 0;
   const ownershipPercent = tokenAmount ? (parseInt(tokenAmount) / property.total_tokens) * 100 : 0;
   
   // Calculate expected yearly income based on rental yield
@@ -172,10 +212,12 @@ export default function PropertyCard({ property }: PropertyCardProps) {
           <div>
             <p className="text-sm text-muted-foreground">Property Value</p>
             <p className="font-bold">AED {property.total_value.toLocaleString()}</p>
+            {isXrpRateLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : xrpRate && <p className="font-bold text-sm text-muted-foreground">~ {(property.total_value / xrpRate).toLocaleString()} XRP</p>}
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Token Price</p>
             <p className="font-bold text-primary">AED {property.token_price.toFixed(2)}</p>
+            {isXrpRateLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : xrpRate && <p className="font-bold text-sm text-primary">~ {(property.token_price / xrpRate).toFixed(2)} XRP</p>}
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Total Tokens</p>
@@ -220,14 +262,14 @@ export default function PropertyCard({ property }: PropertyCardProps) {
           <DialogTrigger asChild>
             <Button 
               className="w-full" 
-              disabled={!["approved", "tokenized"].includes(property.status) || tokensAvailable === 0}
+              disabled={!["approved", "tokenized"].includes(property.status) || tokensAvailable === 0 || isXrpRateLoading}
               data-testid="button-invest-now"
             >
               {!["approved", "tokenized"].includes(property.status)
                 ? "Not Available" 
                 : tokensAvailable === 0 
                 ? "Sold Out" 
-                : "Invest Now"
+                : isXrpRateLoading ? "Loading XRP Rate..." : "Invest Now"
               }
             </Button>
           </DialogTrigger>
@@ -260,6 +302,20 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                     <span>Investment Amount:</span>
                     <span className="font-medium">AED {totalInvestment.toLocaleString()}</span>
                   </div>
+                  {isXrpRateLoading ? (
+                    <div className="flex justify-between text-sm items-center">
+                      <span>XRP Amount:</span>
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span className="text-muted-foreground">Loading...</span>
+                      </div>
+                    </div>
+                  ) : xrpRate && (
+                    <div className="flex justify-between text-sm">
+                      <span>XRP Amount:</span>
+                      <span className="font-medium text-orange-600">~ {totalInvestmentXRP.toFixed(4)} XRP</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span>Ownership:</span>
                     <span className="font-medium">{ownershipPercent.toFixed(3)}%</span>
@@ -285,17 +341,22 @@ export default function PropertyCard({ property }: PropertyCardProps) {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={investmentMutation.isPending}
+                  disabled={investmentMutation.isPending || isXrpRateLoading}
                   className="flex-1"
                   data-testid="button-confirm-investment"
                 >
                   {investmentMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {property.xrplTokenCreated ? 'Processing Investment...' : 'Tokenizing Property...'}
+                      Processing Investment...
+                    </>
+                  ) : isXrpRateLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading XRP Rate...
                     </>
                   ) : (
-                    `Invest AED ${totalInvestment.toLocaleString()}`
+                    `Invest ~${totalInvestmentXRP.toFixed(4)} XRP`
                   )}
                 </Button>
               </div>

@@ -21,19 +21,17 @@ import type { UserPanel, PageView } from "@/pages/home-page";
 interface SidebarProps {
   currentPanel: UserPanel;
   currentPage: PageView;
-  onPanelSwitch: (panel: UserPanel) => void;
   onPageChange: (page: PageView) => void;
   isOpen: boolean;
   onClose: () => void;
 }
 
 export default function Sidebar({ 
-  currentPanel, 
+  currentPanel,
   currentPage, 
-  onPanelSwitch, 
   onPageChange,
   isOpen,
-  onClose 
+  onClose
 }: SidebarProps) {
   const { user, logoutMutation } = useAuth();  const investorNavItems = [
     { id: "dashboard" as PageView, label: "Dashboard", icon: TrendingUp },
@@ -83,47 +81,20 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* Navigation Tabs */}
+        {/* User Role Display */}
         <div className="p-4 border-b border-border">
-          <div className={`flex bg-muted rounded-lg p-1 ${user?.userType === 'admin' ? 'grid-cols-3' : ''}`}>
-            <button 
-              onClick={() => onPanelSwitch("investor")}
-              className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${
-                currentPanel === "investor" 
-                  ? "bg-card text-foreground shadow-sm" 
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid="button-panel-investor"
-            >
-              <TrendingUp className="h-4 w-4" />
-              Investor
-            </button>
-            <button 
-              onClick={() => onPanelSwitch("seller")}
-              className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${
-                currentPanel === "seller" 
-                  ? "bg-card text-foreground shadow-sm" 
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid="button-panel-seller"
-            >
-              <Building className="h-4 w-4" />
-              Seller
-            </button>
-            {user?.userType === 'admin' && (
-              <button 
-                onClick={() => onPanelSwitch("admin")}
-                className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${
-                  currentPanel === "admin" 
-                    ? "bg-card text-foreground shadow-sm" 
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                data-testid="button-panel-admin"
-              >
-                <Shield className="h-4 w-4" />
-                Admin
-              </button>
-            )}
+          <div className="bg-muted rounded-lg p-3">
+            <div className="flex items-center justify-center gap-2">
+              {currentPanel === "investor" && <TrendingUp className="h-4 w-4" />}
+              {currentPanel === "seller" && <Building className="h-4 w-4" />}
+              {currentPanel === "admin" && <Shield className="h-4 w-4" />}
+              <span className="text-sm font-medium capitalize">
+                {currentPanel} Dashboard
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground text-center mt-1">
+              Role: {user?.userType || 'Unknown'}
+            </p>
           </div>
         </div>
 

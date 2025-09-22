@@ -6,6 +6,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, List, Optional
 from app.models.user import User
 from app.auth import get_current_active_user
+from app.services.xrpl_service import xrpl_service
+from xrpl.utils import drops_to_xrp
 import logging
 import time
 
@@ -43,21 +45,34 @@ async def get_simple_wallet_info(current_user: User = Depends(get_current_active
                         "country": prop.country
                     }
                 })
+
+        # Get real XRP balance
+        account_info = await xrpl_service.get_account_info(current_user.xrpl_wallet_address)
+        xrp_balance = 0
+        if account_info and "Balance" in account_info:
+            xrp_balance = drops_to_xrp(account_info["Balance"])
+        
+        # Get real transaction history
+        real_transactions = await xrpl_service.get_account_transactions(current_user.xrpl_wallet_address, 5)
+        
+        transactions = []
+        for tx_data in real_transactions:
+            tx = tx_data.get('tx', {})
+            if tx:
+                transactions.append({
+                    "hash": tx.get('hash', 'Unknown'),
+                    "type": tx.get('TransactionType', 'Unknown'),
+                    "date": tx_data.get('date', int(time.time())),
+                    "amount": tx.get('Amount', '0'),
+                    "destination": tx.get('Destination', ''),
+                    "explorer_url": f"https://testnet.xrpl.org/transactions/{tx.get('hash', '')}"
+                })
         
         wallet_info = {
             "address": current_user.xrpl_wallet_address,
-            "xrp_balance": 10.0,  # Keep mock balance for now
+            "xrp_balance": xrp_balance,
             "tokens": tokens,
-            "transactions": [
-                {
-                    "hash": f"TX_{current_user.username}_{len(tokens)}",
-                    "type": "TokenCreation" if tokens else "Payment",
-                    "date": int(time.time()) - 3600,  # 1 hour ago
-                    "amount": str(len(tokens) * 1000) if tokens else "10",
-                    "destination": current_user.xrpl_wallet_address,
-                    "explorer_url": f"https://testnet.xrpl.org/transactions/TX_{current_user.username}_{len(tokens)}"
-                }
-            ] if tokens else [],
+            "transactions": transactions,
             "explorer_url": f"https://testnet.xrpl.org/accounts/{current_user.xrpl_wallet_address}"
         }
         
@@ -77,8 +92,13 @@ async def get_wallet_balance(current_user: User = Depends(get_current_active_use
         if not current_user.xrpl_wallet_address:
             return {"xrp_balance": 0, "token_count": 0, "has_wallet": False}
         
+        account_info = await xrpl_service.get_account_info(current_user.xrpl_wallet_address)
+        xrp_balance = 0
+        if account_info and "Balance" in account_info:
+            xrp_balance = drops_to_xrp(account_info["Balance"])
+
         return {
-            "xrp_balance": 10.0,
+            "xrp_balance": xrp_balance,
             "token_count": 1,
             "has_wallet": True,
             "address": current_user.xrpl_wallet_address

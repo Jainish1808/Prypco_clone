@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List
 from app.models.property import Property, PropertyCreate, PropertyResponse, InvestmentRequest, PropertyStatus
 from app.models.user import User
-from app.auth import get_current_verified_user, get_current_active_user
+from app.auth import get_current_verified_user, get_current_active_user, get_current_investor
 from app.services.tokenization_service import tokenization_service
 
 router = APIRouter(prefix="/api", tags=["properties"])
@@ -115,9 +115,9 @@ async def get_property(property_id: str):
 async def invest_in_property(
     property_id: str,
     investment_data: InvestmentRequest,
-    current_user: User = Depends(get_current_verified_user)
+    current_user: User = Depends(get_current_investor)
 ):
-    """Invest in a property by purchasing tokens"""
+    """Invest in a property by purchasing tokens - INVESTOR ACCESS ONLY"""
     # Get property
     property_obj = await Property.get(property_id)
     if not property_obj:
@@ -162,7 +162,8 @@ async def invest_in_property(
         current_user,
         property_obj,
         investment_data.tokens_to_purchase,
-        investment_data.investment_amount
+        investment_data.investment_amount,
+        investment_data.investment_amount_xrp
     )
     
     if not transaction:

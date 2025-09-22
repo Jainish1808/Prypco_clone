@@ -138,7 +138,7 @@ async def login_user(user_data: UserLogin):
 
 @router.get("/user", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_active_user)):
-    """Get current user information"""
+    """Get current user information with role"""
     return UserResponse(
         id=str(current_user.id),
         email=current_user.email,
@@ -148,12 +148,24 @@ async def get_current_user_info(current_user: User = Depends(get_current_active_
         walletAddress=current_user.xrpl_wallet_address,
         isKYCVerified=current_user.is_kyc_verified,
         userType=current_user.role.value,
-        createdAt=current_user.created_at,
-        role=current_user.role,
-        is_active=current_user.is_active,
-        kyc_status=current_user.kyc_status,
-        phone=current_user.phone
+        createdAt=current_user.created_at.isoformat()
     )
+
+
+@router.get("/user/role")
+async def get_user_role(current_user: User = Depends(get_current_active_user)):
+    """Get current user's role for frontend routing"""
+    return {
+        "user_id": str(current_user.id),
+        "email": current_user.email,
+        "role": current_user.role.value,
+        "is_kyc_verified": current_user.is_kyc_verified,
+        "access_permissions": {
+            "can_access_investor": current_user.role in [UserRole.INVESTOR, UserRole.ADMIN],
+            "can_access_seller": current_user.role in [UserRole.SELLER, UserRole.ADMIN],
+            "can_access_admin": current_user.role == UserRole.ADMIN
+        }
+    }
 
 
 @router.post("/kyc-submit")

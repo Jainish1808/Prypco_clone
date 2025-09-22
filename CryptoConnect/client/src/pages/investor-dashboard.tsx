@@ -29,45 +29,75 @@ export default function InvestorDashboard() {
   const { data: holdings } = useQuery({
     queryKey: ["/api/investor/holdings"],
     queryFn: () => api.getUserHoldings(),
-    enabled: !!user && user.userType === 'investor' && api.isAuthenticated(),
+    enabled: !!user && api.isAuthenticated(), // Temporarily remove userType check
   });
 
   const { data: transactions } = useQuery({
     queryKey: ["/api/investor/transactions"],
     queryFn: () => api.getUserTransactions(),
-    enabled: !!user && user.userType === 'investor' && api.isAuthenticated(),
+    enabled: !!user && api.isAuthenticated(), // Temporarily remove userType check
   });
 
   const { data: incomeHistory } = useQuery({
     queryKey: ["/api/investor/income-statements"],
     queryFn: () => api.getUserIncomeStatements(),
-    enabled: !!user && user.userType === 'investor' && api.isAuthenticated(),
+    enabled: !!user && api.isAuthenticated(), // Temporarily remove userType check
   });
 
-  // Calculate dashboard stats from real data
+  // Calculate dashboard stats from real data with proper field name handling
   const stats: DashboardStats = {
-    totalInvestment: Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => sum + h.totalInvested, 0) : 0,
-    totalValue: Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => sum + (h.tokenAmount * (h.property?.tokenPrice || 0)), 0) : 0,
+    totalInvestment: Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => {
+      const investment = h.totalInvested || h.total_invested || h.total_investment || 0;
+      return sum + investment;
+    }, 0) : 0,
+    totalValue: Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => {
+      const tokens = h.tokenAmount || h.token_amount || h.tokens || 0;
+      const tokenPrice = h.property?.tokenPrice || h.property?.token_price || 0;
+      return sum + (tokens * tokenPrice);
+    }, 0) : 0,
     propertiesOwned: Array.isArray(holdings) ? holdings.length : 0,
-    monthlyIncome: Array.isArray(incomeHistory) ? incomeHistory.reduce((sum: number, income: any) => sum + income.totalAmount, 0) : 0,
-    totalTokens: Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => sum + h.tokenAmount, 0) : 0,
+    monthlyIncome: Array.isArray(incomeHistory) ? incomeHistory.reduce((sum: number, income: any) => sum + (income.totalAmount || income.amount || 0), 0) : 0,
+    totalTokens: Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => {
+      const tokens = h.tokenAmount || h.token_amount || h.tokens || 0;
+      return sum + tokens;
+    }, 0) : 0,
     growthPercentage: (() => {
-      const totalInvested = Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => sum + h.totalInvested, 0) : 0;
-      const totalCurrent = Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => sum + (h.tokenAmount * (h.property?.tokenPrice || 0)), 0) : 0;
+      const totalInvested = Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => {
+        const investment = h.totalInvested || h.total_invested || h.total_investment || 0;
+        return sum + investment;
+      }, 0) : 0;
+      const totalCurrent = Array.isArray(holdings) ? holdings.reduce((sum: number, h: any) => {
+        const tokens = h.tokenAmount || h.token_amount || h.tokens || 0;
+        const tokenPrice = h.property?.tokenPrice || h.property?.token_price || 0;
+        return sum + (tokens * tokenPrice);
+      }, 0) : 0;
       return totalInvested > 0 ? ((totalCurrent - totalInvested) / totalInvested) * 100 : 0;
     })()
   };
 
-  // Generate recent income from actual data
+    // Generate recent income from actual data with safety checks
   const recentIncomeData = Array.isArray(incomeHistory) && incomeHistory.length > 0 
     ? incomeHistory.slice(0, 3).map((income: any) => ({
-        propertyName: income.propertyName || `Property ${income.propertyId}`,
-        propertyId: income.propertyId,
-        amount: income.totalAmount || income.amount,
-        month: new Date(income.date || income.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-        icon: "home"
+        propertyName: income.propertyName || income.property_title || `Property ${income.propertyId || income.property_id || 'Unknown'}`,
+        propertyId: income.propertyId || income.property_id || 'unknown',
+        amount: income.totalAmount || income.amount || 0,
+        month: income.period || new Date(income.payment_date || income.created_at || Date.now()).toLocaleDateString('en-US', { 
+          month: 'short', 
+          year: 'numeric' 
+        })
       }))
     : [];
+
+  // Safety function to display numbers without NaN
+  const safeNumber = (value: number) => {
+    if (isNaN(value) || !isFinite(value)) return 0;
+    return value;
+  };
+
+  const safePercentage = (value: number) => {
+    if (isNaN(value) || !isFinite(value)) return 0;
+    return Number(value.toFixed(1));
+  };
 
   return (
     <div className="space-y-6">
@@ -78,9 +108,9 @@ export default function InvestorDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-muted-foreground text-sm">Total Investment</p>
-                <p className="text-2xl font-bold">${stats.totalInvestment.toLocaleString()}</p>
-                <p className={`text-sm ${stats.growthPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {stats.growthPercentage >= 0 ? '+' : ''}{stats.growthPercentage.toFixed(1)}% portfolio growth
+                <p className="text-2xl font-bold">${safeNumber(stats.totalInvestment).toLocaleString()}</p>
+                <p className={`text-sm ${safePercentage(stats.growthPercentage) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {safePercentage(stats.growthPercentage) >= 0 ? '+' : ''}{safePercentage(stats.growthPercentage).toFixed(1)}% portfolio growth
                 </p>
               </div>
               <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
@@ -110,9 +140,9 @@ export default function InvestorDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-muted-foreground text-sm">Monthly Income</p>
-                <p className="text-2xl font-bold">${stats.monthlyIncome.toLocaleString()}</p>
+                <p className="text-2xl font-bold">${safeNumber(stats.monthlyIncome).toLocaleString()}</p>
                 <p className="text-muted-foreground text-sm">
-                  {stats.monthlyIncome > 0 ? "From property distributions" : "Start investing to earn income"}
+                  {safeNumber(stats.monthlyIncome) > 0 ? "From property distributions" : "Start investing to earn income"}
                 </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
@@ -127,7 +157,7 @@ export default function InvestorDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-muted-foreground text-sm">Total Tokens</p>
-                <p className="text-2xl font-bold">{stats.totalTokens.toLocaleString()}</p>
+                <p className="text-2xl font-bold">{safeNumber(stats.totalTokens).toLocaleString()}</p>
                 <p className="text-muted-foreground text-sm">Across portfolio</p>
               </div>
               <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">

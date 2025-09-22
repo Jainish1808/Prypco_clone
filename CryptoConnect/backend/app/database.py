@@ -4,6 +4,7 @@ from app.config import settings
 from app.models.user import User
 from app.models.property import Property
 from app.models.transaction import Transaction
+from app.routers.market import MarketOrder
 
 
 class Database:
@@ -22,7 +23,7 @@ async def connect_to_mongo():
     # Initialize beanie with the models
     await init_beanie(
         database=db.database,
-        document_models=[User, Property, Transaction]
+        document_models=[User, Property, Transaction, MarketOrder]
     )
 
 

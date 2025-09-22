@@ -266,6 +266,7 @@ class ApiClient {
     property_id: string;
     investment_amount: number;
     tokens_to_purchase: number;
+    investment_amount_xrp: number;
   }): Promise<{
     message: string;
     transaction_id: string;

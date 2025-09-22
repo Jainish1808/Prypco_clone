@@ -9,6 +9,7 @@ import SellerDashboard from "@/pages/seller-dashboard";
 import Properties from "@/pages/properties";
 import Portfolio from "@/pages/portfolio";
 import SecondaryMarket from "@/pages/secondary-market";
+import IncomeHistory from "@/pages/income-history";
 import PropertySubmission from "@/pages/property-submission";
 import MyProperties from "@/pages/my-properties";
 import Analytics from "@/pages/analytics";
@@ -31,13 +32,37 @@ export type PageView =
 
 export default function HomePage() {
   const { user } = useAuth();
-  const [currentPanel, setCurrentPanel] = useState<UserPanel>(
-    user?.userType === "admin" ? "admin" : user?.userType || "investor"
-  );
-  const [currentPage, setCurrentPage] = useState<PageView>(
-    user?.userType === "admin" ? "admin-dashboard" :
-    currentPanel === "investor" ? "dashboard" : "seller-dashboard"
-  );
+  
+  // Role-based panel determination - NO MANUAL SWITCHING
+  const getUserPanel = (): UserPanel => {
+    if (!user) return "investor";
+    switch (user.userType) {
+      case "admin":
+        return "admin";
+      case "seller":
+        return "seller";
+      case "investor":
+      default:
+        return "investor";
+    }
+  };
+  
+  // Role-based default page
+  const getDefaultPage = (): PageView => {
+    if (!user) return "dashboard";
+    switch (user.userType) {
+      case "admin":
+        return "admin-dashboard";
+      case "seller":
+        return "seller-dashboard";
+      case "investor":
+      default:
+        return "dashboard";
+    }
+  };
+  
+  const [currentPanel] = useState<UserPanel>(getUserPanel());
+  const [currentPage, setCurrentPage] = useState<PageView>(getDefaultPage());
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [viewPropertyId, setViewPropertyId] = useState<string | null>(null);
   const [editPropertyId, setEditPropertyId] = useState<string | null>(null);
@@ -61,16 +86,30 @@ export default function HomePage() {
     enabled: !!editPropertyId,
   });
 
-  const handlePanelSwitch = (panel: UserPanel) => {
-    setCurrentPanel(panel);
-    if (panel === "admin") {
-      setCurrentPage("admin-dashboard");
-    } else {
-      setCurrentPage(panel === "investor" ? "dashboard" : "seller-dashboard");
+  // Role-based page validation - prevent access to unauthorized pages
+  const isPageAllowedForRole = (page: PageView, userType: string): boolean => {
+    const investorPages: PageView[] = ["dashboard", "properties", "portfolio", "market", "income"];
+    const sellerPages: PageView[] = ["seller-dashboard", "submit-property", "my-properties", "analytics"];
+    const adminPages: PageView[] = ["admin-dashboard"];
+    
+    switch (userType) {
+      case "admin":
+        return [...investorPages, ...sellerPages, ...adminPages].includes(page);
+      case "seller":
+        return sellerPages.includes(page);
+      case "investor":
+      default:
+        return investorPages.includes(page);
     }
   };
 
   const handlePageChange = (page: PageView) => {
+    // Validate user has access to this page
+    if (!user || !isPageAllowedForRole(page, user.userType)) {
+      console.warn(`Access denied: ${user?.userType || 'unknown'} cannot access ${page}`);
+      return;
+    }
+    
     setCurrentPage(page);
     setSidebarOpen(false); // Close mobile sidebar after navigation
   };
@@ -92,22 +131,11 @@ export default function HomePage() {
       case "properties":
         return <Properties />;
       case "portfolio":
-        return <Portfolio />;
+        return <Portfolio onNavigateToProperties={() => handlePageChange("properties")} />;
       case "market":
         return <SecondaryMarket />;
       case "income":
-        return <div className="p-6 text-center">
-          <h3 className="text-lg font-semibold mb-2">Income History</h3>
-          <p className="text-muted-foreground mb-4">
-            Track your rental income and dividend distributions from property investments
-          </p>
-          <Button 
-            onClick={() => handlePageChange("portfolio")}
-            data-testid="button-view-portfolio"
-          >
-            View Portfolio Details
-          </Button>
-        </div>;
+        return <IncomeHistory onNavigateToPortfolio={() => handlePageChange("portfolio")} />;
       case "seller-dashboard":
         return <SellerDashboard onNavigate={handlePageChange} />;
       case "submit-property":
@@ -135,16 +163,13 @@ export default function HomePage() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar
-        currentPanel={currentPanel}
-        currentPage={currentPage}
-        onPanelSwitch={handlePanelSwitch}
-        onPageChange={handlePageChange}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-      />
-      
-      <div className="flex-1 lg:ml-0">
+        <Sidebar
+          currentPanel={currentPanel}
+          currentPage={currentPage}
+          onPageChange={handlePageChange}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />      <div className="flex-1 lg:ml-0">
         <Header 
           currentPage={currentPage}
           onMenuClick={() => setSidebarOpen(true)}

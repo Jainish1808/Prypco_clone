@@ -47,10 +47,23 @@ class MarketOrder(Document):
 
 
 class CreateOrderRequest(BaseModel):
-    property_id: str
-    order_type: OrderType
-    tokens: int
-    price_per_token: float
+    propertyId: str
+    order_type: Optional[OrderType] = None
+    tokenAmount: int
+    pricePerToken: float
+    
+    # Convert to internal names
+    @property
+    def property_id(self) -> str:
+        return self.propertyId
+        
+    @property
+    def tokens(self) -> int:
+        return self.tokenAmount
+        
+    @property
+    def price_per_token(self) -> float:
+        return self.pricePerToken
 
 
 class OrderResponse(BaseModel):
@@ -71,11 +84,47 @@ class OrderResponse(BaseModel):
 router = APIRouter(prefix="/api/market", tags=["secondary-market"])
 
 
-@router.get("/orders")
-async def get_market_orders():
-    """Get all market orders"""
-    # Return empty list for now
-    return []
+@router.get("/orders", response_model=List[OrderResponse])
+async def get_market_orders(
+    property_id: Optional[str] = None,
+    order_type: Optional[OrderType] = None,
+    limit: int = 50
+):
+    """Get active market orders"""
+    query_filters = [MarketOrder.status == OrderStatus.ACTIVE]
+    
+    if property_id:
+        query_filters.append(MarketOrder.property_id == property_id)
+    
+    if order_type:
+        query_filters.append(MarketOrder.order_type == order_type)
+    
+    orders = await MarketOrder.find(*query_filters).sort(-MarketOrder.created_at).limit(limit).to_list()
+    
+    # Get property titles
+    property_titles = {}
+    for order in orders:
+        if order.property_id not in property_titles:
+            prop = await Property.get(order.property_id)
+            property_titles[order.property_id] = prop.title if prop else "Unknown Property"
+    
+    return [
+        OrderResponse(
+            id=str(order.id),
+            user_id=order.user_id,
+            property_id=order.property_id,
+            property_title=property_titles.get(order.property_id, "Unknown Property"),
+            order_type=order.order_type,
+            tokens=order.tokens,
+            price_per_token=order.price_per_token,
+            total_amount=order.total_amount,
+            tokens_filled=order.tokens_filled,
+            tokens_remaining=order.tokens - order.tokens_filled,
+            status=order.status,
+            created_at=order.created_at
+        )
+        for order in orders
+    ]
 
 
 @router.post("/orders")
@@ -136,47 +185,24 @@ async def create_market_order(
     }
 
 
-@router.get("/orders", response_model=List[OrderResponse])
-async def get_market_orders(
-    property_id: Optional[str] = None,
-    order_type: Optional[OrderType] = None,
-    limit: int = 50
+@router.post("/buy")
+async def create_buy_order(
+    order_data: CreateOrderRequest,
+    current_user: User = Depends(get_current_verified_user)
 ):
-    """Get active market orders"""
-    query_filters = [MarketOrder.status == OrderStatus.ACTIVE]
-    
-    if property_id:
-        query_filters.append(MarketOrder.property_id == property_id)
-    
-    if order_type:
-        query_filters.append(MarketOrder.order_type == order_type)
-    
-    orders = await MarketOrder.find(*query_filters).sort(-MarketOrder.created_at).limit(limit).to_list()
-    
-    # Get property titles
-    property_titles = {}
-    for order in orders:
-        if order.property_id not in property_titles:
-            prop = await Property.get(order.property_id)
-            property_titles[order.property_id] = prop.title if prop else "Unknown Property"
-    
-    return [
-        OrderResponse(
-            id=str(order.id),
-            user_id=order.user_id,
-            property_id=order.property_id,
-            property_title=property_titles.get(order.property_id, "Unknown Property"),
-            order_type=order.order_type,
-            tokens=order.tokens,
-            price_per_token=order.price_per_token,
-            total_amount=order.total_amount,
-            tokens_filled=order.tokens_filled,
-            tokens_remaining=order.tokens - order.tokens_filled,
-            status=order.status,
-            created_at=order.created_at
-        )
-        for order in orders
-    ]
+    """Create a buy order on the secondary market"""
+    order_data.order_type = OrderType.BUY
+    return await create_market_order(order_data, current_user)
+
+
+@router.post("/sell")
+async def create_sell_order(
+    order_data: CreateOrderRequest,
+    current_user: User = Depends(get_current_verified_user)
+):
+    """Create a sell order on the secondary market"""
+    order_data.order_type = OrderType.SELL
+    return await create_market_order(order_data, current_user)
 
 
 @router.get("/orders/my", response_model=List[OrderResponse])
@@ -252,7 +278,7 @@ async def get_user_token_balance(user_id: str, property_id: str) -> int:
     purchases = await Transaction.find(
         Transaction.user_id == user_id,
         Transaction.property_id == property_id,
-        Transaction.transaction_type == "token_purchase",
+        Transaction.transaction_type.in_([TransactionType.TOKEN_PURCHASE, TransactionType.SECONDARY_MARKET_BUY]),
         Transaction.status == TransactionStatus.COMPLETED
     ).to_list()
     
@@ -260,7 +286,7 @@ async def get_user_token_balance(user_id: str, property_id: str) -> int:
     sales = await Transaction.find(
         Transaction.user_id == user_id,
         Transaction.property_id == property_id,
-        Transaction.transaction_type.in_(["token_sale", "secondary_market_sell"]),
+        Transaction.transaction_type.in_([TransactionType.TOKEN_SALE, TransactionType.SECONDARY_MARKET_SELL]),
         Transaction.status == TransactionStatus.COMPLETED
     ).to_list()
     

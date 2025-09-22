@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu, Bell, Wallet, Clock, X, Trash2 } from "lucide-react";
+import { Menu, Bell, Wallet, Clock, X, Trash2, PlusCircle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import type { PageView } from "@/pages/home-page";
@@ -75,7 +75,7 @@ export default function Header({ currentPage, onMenuClick }: HeaderProps) {
   const config = pageConfig[currentPage] || pageConfig.dashboard;
 
   // Fetch wallet balance dynamically
-  const { data: walletData } = useQuery({
+  const { data: walletData, refetch: refetchWalletData } = useQuery({
     queryKey: ['/api/simple-wallet/info'],
     queryFn: async () => {
       const response = await fetch('/api/simple-wallet/info', {
@@ -165,6 +165,27 @@ export default function Header({ currentPage, onMenuClick }: HeaderProps) {
     ? portfolioValue 
     : xrpBalance;
 
+  const handleFundWallet = async () => {
+    try {
+      const response = await fetch('/api/wallet/fund', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        addNotification({ title: "Success", message: data.message, type: "success" });
+        refetchWalletData();
+      } else {
+        addNotification({ title: "Error", message: data.detail, type: "error" });
+      }
+    } catch (error) {
+      addNotification({ title: "Error", message: "Failed to fund wallet", type: "error" });
+    }
+  };
+
   return (
     <header className="bg-card border-b border-border px-6 py-4">
       <div className="flex items-center justify-between">
@@ -193,6 +214,11 @@ export default function Header({ currentPage, onMenuClick }: HeaderProps) {
                 : `XRP: ${displayBalance.toFixed(2)}`
               }
             </span>
+            {user?.userType === 'investor' && (
+              <Button variant="ghost" size="sm" onClick={handleFundWallet} className="ml-2">
+                <PlusCircle className="h-4 w-4" />
+              </Button>
+            )}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
