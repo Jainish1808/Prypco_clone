@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.auth import get_current_user
 from app.models.user import User
 from app.services.xrpl_service import xrpl_service
+from app.config import settings
 
 router = APIRouter(prefix="/api/wallet", tags=["wallet"])
 
